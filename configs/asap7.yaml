@@ -1,0 +1,55 @@
+# ASAP7 PDK Configuration
+# References: https://github.com/The-OpenROAD-Project/asap7
+# All paths are relative to the repository root unless absolute.
+
+asap7:
+  pdk_dir: data/pdk/asap7           # set to your local ASAP7 clone
+  tech_lef: asap7_tech.lef          # technology LEF (must exist in pdk_dir)
+  cell_lef: asap7sc7p5t_28_R.lef    # standard-cell LEF (28-track 7.5T R variant)
+  lib_dir:  lib                     # liberty files directory within pdk_dir
+
+  # Standard site used in initialize_floorplan invocations
+  site_name: asap7sc7p5t_28_R_site
+
+  # Minimum manufacturing grid (nm → must match tech_lef)
+  manufacturing_grid_nm: 1
+
+  # Routing tracks (horizontal / vertical layer names and pitches)
+  routing_layers:
+    - layer: M1
+      direction: horizontal
+      pitch_nm: 27
+    - layer: M2
+      direction: vertical
+      pitch_nm: 27
+    - layer: M3
+      direction: horizontal
+      pitch_nm: 54
+    - layer: M4
+      direction: vertical
+      pitch_nm: 54
+
+  # make_tracks parameters (generated into Tcl)
+  tracks:
+    - layer: M1
+      x_offset: 0
+      x_pitch:  0.027
+      y_offset: 0
+      y_pitch:  0.027
+    - layer: M2
+      x_offset: 0
+      x_pitch:  0.027
+      y_offset: 0
+      y_pitch:  0.027
+
+  # Validation: list of files that must exist before running any ASAP7 design.
+  required_files:
+    - asap7_tech.lef
+    - asap7sc7p5t_28_R.lef
+
+  # Notes for the user
+  acquisition_note: >
+    Clone the ASAP7 PDK:
+      git clone https://github.com/The-OpenROAD-Project/asap7 data/pdk/asap7
+    Then set pdk_dir above to match. The framework will validate required_files
+    before attempting any ASAP7-based run and skip with a clear message if missing.

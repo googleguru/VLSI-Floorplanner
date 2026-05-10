@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.so
+.env
+.venv/
+dist/
+build/
+*.egg-info/
+outputs/figures/*.png
+outputs/figures/*.pdf
+outputs/tables/*.csv
+outputs/logs/*.log
+outputs/reports/*.md
+outputs/floorplans/*.def
+*.dmp
+.DS_Store

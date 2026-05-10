@@ -1,0 +1,112 @@
+# Cellular Automata Rule Configurations
+# Each rule_set is a named experiment variant; best is selected by eval.
+
+global:
+  seed: 42
+  grid_resolution: 64        # cells along each axis (overridable per design)
+  neighborhood: moore        # "moore" | "von_neumann"
+  max_generations: 200
+  convergence_eps: 1e-5      # halt early if state delta < eps
+
+# ─── Rule-set library ────────────────────────────────────────────────────────
+# Each entry defines which rule families are active and their weights.
+# Rules apply in phase order; within a phase all active rules fire simultaneously.
+
+rule_sets:
+
+  # Ablation 0: no CA (pure OpenROAD ifp baseline)
+  baseline:
+    enabled: false
+
+  # Ablation 1: density equalization only
+  density_only:
+    enabled: true
+    phases:
+      - name: seed
+        rules: [density_equalization]
+        generations: 30
+      - name: smooth
+        rules: [whitespace_smoothing]
+        generations: 20
+    weights:
+      density_equalization: 1.0
+      whitespace_smoothing: 0.5
+
+  # Ablation 2: density + connectivity
+  density_connectivity:
+    enabled: true
+    phases:
+      - name: seed
+        rules: [density_equalization]
+        generations: 30
+      - name: cluster
+        rules: [connectivity_attraction]
+        generations: 40
+      - name: smooth
+        rules: [whitespace_smoothing]
+        generations: 20
+    weights:
+      density_equalization: 1.0
+      connectivity_attraction: 1.2
+      whitespace_smoothing: 0.5
+
+  # Ablation 3 / main method: full rule-based CA
+  full_ca:
+    enabled: true
+    phases:
+      - name: seed
+        rules: [density_equalization]
+        generations: 20
+      - name: compact
+        rules: [density_equalization, connectivity_attraction]
+        generations: 40
+      - name: separate
+        rules: [repulsion_separation]
+        generations: 30
+      - name: cluster
+        rules: [connectivity_attraction]
+        generations: 30
+      - name: legalize
+        rules: [boundary_regularization]
+        generations: 20
+      - name: smooth
+        rules: [whitespace_smoothing]
+        generations: 20
+    weights:
+      density_equalization:     1.0
+      connectivity_attraction:  1.2
+      repulsion_separation:     1.5
+      boundary_regularization:  0.8
+      whitespace_smoothing:     0.6
+
+# ─── Rule hyper-parameters ───────────────────────────────────────────────────
+rule_params:
+  density_equalization:
+    alpha: 0.25              # fraction of excess density to redistribute
+    threshold: 0.05          # minimum density difference to trigger rule
+
+  connectivity_attraction:
+    beta: 0.30               # attraction strength
+    max_net_pressure: 1.0    # clamp
+
+  repulsion_separation:
+    gamma: 0.40              # repulsion strength
+    min_gap_frac: 0.02       # minimum gap as fraction of core dimension
+
+  boundary_regularization:
+    margin_frac: 0.05        # target margin from die edge as fraction of core
+    lambda_b: 0.35
+
+  whitespace_smoothing:
+    sigma: 1.5               # Gaussian smoothing radius (cells)
+    target_utilization: 0.70 # target average utilization
+
+# ─── Rule search space ───────────────────────────────────────────────────────
+# Used by the rule-search driver to sweep combinations.
+rule_search:
+  alpha_values:   [0.15, 0.25, 0.35]
+  beta_values:    [0.20, 0.30, 0.40]
+  gamma_values:   [0.30, 0.40, 0.50]
+  neighborhood:   [moore, von_neumann]
+  generations:    [100, 150, 200]
+  metric:         hpwl      # optimize for: hpwl | density_variance | overlap_area
