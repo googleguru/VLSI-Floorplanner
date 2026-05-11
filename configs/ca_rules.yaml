@@ -50,7 +50,7 @@ rule_sets:
       connectivity_attraction: 1.2
       whitespace_smoothing: 0.5
 
-  # Ablation 3 / main method: full rule-based CA
+  # Ablation 3 / main method: full rule-based CA with Rule 235 placer pass
   full_ca:
     enabled: true
     phases:
@@ -66,6 +66,12 @@ rule_sets:
       - name: cluster
         rules: [connectivity_attraction]
         generations: 30
+      - name: rule235_cleanup
+        # Wolfram Rule 235: eliminate isolated density islands, connect nearby
+        # clusters, preserve intentional whitespace. Run before legalization so
+        # the placer (MacroAssigner) receives clean, connected density zones.
+        rules: [rule_235]
+        generations: 25
       - name: legalize
         rules: [boundary_regularization]
         generations: 20
@@ -78,6 +84,7 @@ rule_sets:
       repulsion_separation:     1.5
       boundary_regularization:  0.8
       whitespace_smoothing:     0.6
+      rule_235:                 1.0   # applied at full weight during cleanup phase
 
 # ─── Rule hyper-parameters ───────────────────────────────────────────────────
 rule_params:
@@ -100,6 +107,12 @@ rule_params:
   whitespace_smoothing:
     sigma: 1.5               # Gaussian smoothing radius (cells)
     target_utilization: 0.70 # target average utilization
+
+  rule_235:
+    threshold: 0.30          # density value considered 'active' for Rule 235
+    strength: 0.20           # convergence rate toward target (isolated→0, birth→threshold)
+    birth_neighbors: 1       # min active Moore neighbours for a dead cell to be born
+    survival_neighbors: 1    # min active Moore neighbours for a live cell to survive
 
 # ─── Rule search space ───────────────────────────────────────────────────────
 # Used by the rule-search driver to sweep combinations.

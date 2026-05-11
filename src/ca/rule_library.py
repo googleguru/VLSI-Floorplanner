@@ -29,13 +29,26 @@ Rule documentation (also replicated in README):
 5. whitespace_smoothing
    Apply Gaussian smoothing to density, targeting uniform utilization.
    delta_den = sigma * (gaussian_smooth(den) - den)
+
+6. rule_235  (Wolfram Rule 235, generalised to 2D VLSI)
+   Binary representation of Rule 235: 11101011
+   Key behaviours ported to 2D Moore neighbourhood totalistic CA:
+     - Isolated live cells die            (pattern 010 → 0)
+     - Connected live cells survive       (patterns 011, 111, ... → 1)
+     - Dead cells adjacent to live cells  (patterns 001, 011, ... → 1)
+     - True void cells (no live neighbours) stay void (VLSI whitespace preserved)
+   Applied to the density channel:
+     delta_den[isolated]  = strength * (0          - den)  cell eliminated
+     delta_den[births]    = strength * (threshold   - den)  cell seeded
+   Net effect: eliminates isolated density islands, connects nearby clusters,
+   preserves intentional whitespace — directly improves placer zone quality.
 """
 from __future__ import annotations
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
-from .grid_model import CH_OCC, CH_DEN, CH_AFF, CH_BND, CH_NET, CH_BLK, CellState
+from .grid_model import CH_OCC, CH_DEN, CH_AFF, CH_BND, CH_NET, CH_BLK, CellState, N_CHAN
 from .neighborhood import channel_mean_moore, channel_sum_moore, channel_sum_vn
 
 
@@ -176,11 +189,89 @@ def whitespace_smoothing(
     return delta
 
 
+def rule_235(
+    state: np.ndarray,
+    params: dict,
+    neighborhood: str = "moore",
+) -> np.ndarray:
+    """Rule 6: Wolfram Rule 235 generalised to 2D VLSI placement grid.
+
+    Rule 235 in binary (11101011) encodes these elementary CA transitions:
+        pattern 111 → 1  pattern 110 → 1  pattern 101 → 1  pattern 100 → 0
+        pattern 011 → 1  pattern 010 → 0  pattern 001 → 1  pattern 000 → 1
+
+    The two non-trivial zeroes (010 and 100) give us the core behaviours:
+      - 010: isolated live cell → dies
+      - 100: dead cell with a single one-sided neighbour → stays dead
+
+    Generalised to 2D Moore neighbourhood (totalistic):
+      - center=1, active_neighbours=0  →  cell dies       (maps to 010 → 0)
+      - center=0, active_neighbours=0  →  stays void       (VLSI whitespace)
+      - center=1, active_neighbours≥1  →  cell survives   (maps to 011/111 → 1)
+      - center=0, active_neighbours≥birth_nbrs → cell born (maps to 001/011 → 1)
+
+    Applied to the density channel:
+      Isolated density islands are eliminated; cells adjacent to active
+      clusters are seeded; intentional whitespace (no live neighbours) is
+      preserved. This directly sharpens the macro-zone signal fed to the
+      placer (MacroAssigner).
+
+    Parameters (rule_params.rule_235 in ca_rules.yaml):
+      threshold      float  density value considered 'active'  default 0.30
+      strength       float  rate of convergence to target       default 0.20
+      birth_neighbors int   min live neighbours to trigger birth  default 1
+      survival_neighbors int min live neighbours to survive      default 1
+    """
+    threshold     = float(params.get("threshold", 0.30))
+    strength      = float(params.get("strength", 0.20))
+    birth_nbrs    = int(params.get("birth_neighbors", 1))
+    survival_nbrs = int(params.get("survival_neighbors", 1))
+
+    den = state[:, :, CH_DEN]
+    blk = state[:, :, CH_BLK]
+    occ = state[:, :, CH_OCC]
+
+    # Binary active map from density
+    active = (den >= threshold).astype(np.float32)
+
+    # Pack into a temporary state array for vectorised neighbour sum
+    tmp = np.zeros((state.shape[0], state.shape[1], N_CHAN), dtype=np.float32)
+    tmp[:, :, CH_DEN] = active
+
+    if neighborhood == "moore":
+        nbr_sum = channel_sum_moore(tmp, CH_DEN)
+    else:
+        nbr_sum = channel_sum_vn(tmp, CH_DEN)
+
+    # Rule 235 pattern application:
+    # Isolated live cells → die  (010 → 0)
+    isolated = (active > 0.5) & (nbr_sum < float(survival_nbrs))
+    # Dead cells with enough live neighbours → born  (001/011 → 1)
+    births   = (active < 0.5) & (nbr_sum >= float(birth_nbrs))
+    # Void cells (active=0, nbr=0) are intentional whitespace; leave unchanged.
+
+    # Target density: drive toward 0 for isolated, toward threshold for births
+    target_den = den.copy()
+    target_den[isolated] = 0.0
+    target_den[births]   = threshold
+
+    delta_den = strength * (target_den - den)
+
+    # Never modify blockage or macro cells
+    fixed = (blk > 0.5) | (occ == CellState.MACRO)
+    delta_den[fixed] = 0.0
+
+    delta = np.zeros_like(state)
+    delta[:, :, CH_DEN] = delta_den.astype(np.float32)
+    return delta
+
+
 # Registry mapping rule names → callables
 RULE_REGISTRY = {
-    "density_equalization":   density_equalization,
+    "density_equalization":    density_equalization,
     "connectivity_attraction": connectivity_attraction,
-    "repulsion_separation":   repulsion_separation,
+    "repulsion_separation":    repulsion_separation,
     "boundary_regularization": boundary_regularization,
-    "whitespace_smoothing":   whitespace_smoothing,
+    "whitespace_smoothing":    whitespace_smoothing,
+    "rule_235":                rule_235,
 }
