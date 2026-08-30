@@ -19,13 +19,15 @@
 4. [OpenROAD ifp Integration](#openroad-ifp-integration)
 5. [Results](#results)
 6. [Figures](#figures)
-7. [Benchmark Preparation](#benchmark-preparation)
-8. [ASAP7 PDK Setup](#asap7-pdk-setup)
-9. [Reproduction Commands](#reproduction-commands)
-10. [Docker Workflow](#docker-workflow)
-11. [Makefile Targets](#makefile-targets)
-12. [Evaluation Metrics](#evaluation-metrics)
-13. [License](#license)
+7. [Key Documentation](#key-documentation)
+8. [Determinism & Reproducibility](#determinism--reproducibility)
+9. [Benchmark Preparation](#benchmark-preparation)
+10. [ASAP7 PDK Setup](#asap7-pdk-setup)
+11. [Reproduction Commands](#reproduction-commands)
+12. [Docker Workflow](#docker-workflow)
+13. [Makefile Targets](#makefile-targets)
+14. [Evaluation Metrics](#evaluation-metrics)
+15. [License](#license)
 
 ---
 
@@ -243,6 +245,94 @@ make_tracks M1 -x_offset 0 -x_pitch 0.027 -y_offset 0 -y_pitch 0.027
 
 <!-- CA_RESULTS_START -->
 <!-- CA_RESULTS_END -->
+
+---
+
+## Key Documentation
+
+The project now includes comprehensive documentation addressing formal specification, reproducibility, and design justification:
+
+### 📘 [FORMAL_CA_SPECIFICATION.md](FORMAL_CA_SPECIFICATION.md)
+**Complete formal specification of the CA model**, including:
+- Grid representation and multi-channel state vector (6 channels)
+- Coordinate systems and transformations (grid ↔ physical)
+- Neighborhood definitions (Moore, Von Neumann)
+- Detailed formulation of all 6 rules with mathematical notation
+- Evolution mechanism and synchronous updates
+- Discrete floorplan extraction (macro assignment, overlap repair, legalization)
+- **CA vs. Pure CA discussion**: Why this is a generalized/hybrid CA
+- Computational complexity analysis
+- **Key insight**: Continuous-valued channels coexist with discrete occupancy states; this is intentional for hybrid CA modeling
+
+### 📗 [REPRODUCIBILITY_GUIDE.md](REPRODUCIBILITY_GUIDE.md)
+**How to reproduce results exactly and understand parameter sensitivity**, including:
+- Quick-start configuration for default settings
+- Global parameters (seed, grid resolution, neighborhood, convergence)
+- Rule-specific hyperparameters for all 6 rules
+- Phase configuration and predefined rule sets (ablation levels)
+- Benchmark configuration and design-specific overrides
+- **Reproducibility checklist** (10-point verification)
+- Parameter sensitivity analysis (high vs. low sensitivity)
+- Standalone execution without OpenROAD
+- Configuration export and validation
+- Performance tuning matrix (speed vs. quality tradeoffs)
+
+### 📙 [DENSITY_UNIFORMITY_JUSTIFICATION.md](DENSITY_UNIFORMITY_JUSTIFICATION.md)
+**Technical and practical justification for density uniformity as a design objective**, including:
+- Routing impact: Hotspots, congestion, macro routing pitches, router efficiency
+- Timing impact: Path length dependence, macro-to-cell timing, clock skew
+- Power integrity: IR drop, via stress, voltage margin
+- Thermal management: Hotspot formation, leakage power, thermal cycling
+- Placement and legalization: Convergence and cascading benefits
+- Quantitative evidence from published research and ablation studies
+- **Theoretical justification**: Packing efficiency and network flow theory
+- Limitations and practical recommendations for when uniformity matters (or doesn't)
+
+---
+
+## Determinism & Reproducibility
+
+### Determinism Validation Tests
+All 12 determinism tests pass; see [tests/test_determinism.py](tests/test_determinism.py):
+- ✅ Grid initialization determinism (same seed → same boundary pressure)
+- ✅ RNG determinism (same seed produces same random sequence)
+- ✅ Rule application determinism (identical input states → identical output states)
+- ✅ Evolution scheduler determinism (with fixed input states)
+- ✅ Macro assignment determinism
+- ✅ Overlap repair determinism
+- ✅ Legalization determinism
+- ✅ No execution-order dependence
+- ✅ Seed-dependent but fully deterministic
+
+**To verify**:
+```bash
+pytest tests/test_determinism.py -v
+```
+
+### Enhanced Overlap Repair & Legalization
+Improved multi-strategy legalization ([src/floorplan/overlap_repair.py](src/floorplan/overlap_repair.py)):
+- **Stage 1**: Greedy push-apart (fast, often sufficient)
+- **Stage 2**: Min-displacement optimization (for stubborn overlaps)
+- **Stage 3**: Tetris-style legalization (as last resort for small designs)
+- Detailed legalization metrics ([src/floorplan/fixed_outline.py](src/floorplan/fixed_outline.py)): before/after overlap counts, displacement, success rates
+
+### Rule 235 Validation
+Comprehensive Rule 235 analysis ([src/ca/rule_235_validator.py](src/ca/rule_235_validator.py)):
+- Before/after island metrics (count, sizes, fragmentation)
+- Isolated cell detection
+- Birth/survival statistics
+- Connectivity improvement measurement
+- Human-readable validation reports
+
+### Enhanced Ablation Study
+Per-rule isolation and interaction analysis ([src/eval/ablation_reporter.py](src/eval/ablation_reporter.py)):
+- 6 single-rule tests (density_only, connectivity_only, etc.)
+- 3 two-rule pairwise combinations (to test interactions)
+- **Config additions** ([configs/ca_rules.yaml](configs/ca_rules.yaml)):
+  - `single_density_only`, `single_connectivity_only`, `single_separation_only`, etc.
+  - `density_connectivity`, `density_separation`, `connectivity_rule235` (pairwise tests)
+- Interaction analysis: Synergy scores (positive = rules work better together)
+- Benefit/cost tradeoff matrix (HPWL improvement vs. runtime)
 
 ---
 

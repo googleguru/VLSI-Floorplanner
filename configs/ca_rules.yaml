@@ -86,6 +86,94 @@ rule_sets:
       whitespace_smoothing:     0.6
       rule_235:                 1.0   # applied at full weight during cleanup phase
 
+  # ─── Per-rule isolation ablation ──────────────────────────────────────────
+  # Each of the following tests a single rule in isolation (no combinations)
+
+  single_density_only:
+    enabled: true
+    phases:
+      - name: density_phase
+        rules: [density_equalization]
+        generations: 100
+    weights:
+      density_equalization: 1.0
+
+  single_connectivity_only:
+    enabled: true
+    phases:
+      - name: connectivity_phase
+        rules: [connectivity_attraction]
+        generations: 100
+    weights:
+      connectivity_attraction: 1.0
+
+  single_separation_only:
+    enabled: true
+    phases:
+      - name: separation_phase
+        rules: [repulsion_separation]
+        generations: 100
+    weights:
+      repulsion_separation: 1.0
+
+  single_boundary_only:
+    enabled: true
+    phases:
+      - name: boundary_phase
+        rules: [boundary_regularization]
+        generations: 100
+    weights:
+      boundary_regularization: 1.0
+
+  single_smoothing_only:
+    enabled: true
+    phases:
+      - name: smoothing_phase
+        rules: [whitespace_smoothing]
+        generations: 100
+    weights:
+      whitespace_smoothing: 1.0
+
+  single_rule235_only:
+    enabled: true
+    phases:
+      - name: rule235_phase
+        rules: [rule_235]
+        generations: 100
+    weights:
+      rule_235: 1.0
+
+  # ─── Two-rule combinations (pairwise interaction testing) ────────────────
+  density_connectivity:
+    enabled: true
+    phases:
+      - name: combined_phase
+        rules: [density_equalization, connectivity_attraction]
+        generations: 100
+    weights:
+      density_equalization: 1.0
+      connectivity_attraction: 1.2
+
+  density_separation:
+    enabled: true
+    phases:
+      - name: combined_phase
+        rules: [density_equalization, repulsion_separation]
+        generations: 100
+    weights:
+      density_equalization: 1.0
+      repulsion_separation: 1.5
+
+  connectivity_rule235:
+    enabled: true
+    phases:
+      - name: combined_phase
+        rules: [connectivity_attraction, rule_235]
+        generations: 100
+    weights:
+      connectivity_attraction: 1.2
+      rule_235: 1.0
+
 # ─── Rule hyper-parameters ───────────────────────────────────────────────────
 rule_params:
   density_equalization:
